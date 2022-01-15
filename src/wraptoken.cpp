@@ -4,13 +4,17 @@ namespace eosio {
 
 
 //fetches proof from the bridge contract
-token::validproof token::get_proof(const uint64_t proof_id){
+token::validproof token::get_proof(const checksum256 action_receipt_digest){
 
-  auto p = _proofstable.find(proof_id);
+  auto global = global_config.get();
 
-  check(p != _proofstable.end(), "proof not found");
+  proofstable _proofstable(global.bridge_contract, global.bridge_contract.value);
+  auto pid_index = _proofstable.get_index<"digest"_n>();
+  auto p_itr = pid_index.find(action_receipt_digest);
 
-  return *p;
+  check(p_itr != pid_index.end(), "proof not found");
+
+  return *p_itr;
 
 }
 
@@ -31,51 +35,36 @@ void token::add_or_assert(const validproof& proof, const name& payer){
 
 }
 
-//creates a new wrapped token, requires a proof of create action
-void token::create(const name& caller, const uint64_t proof_id, const asset&  maximum_supply )
+void token::init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraplock_contract, const name& paired_token_contract)
 {
-    require_auth( caller );
+    require_auth( _self );
 
-    auto sym = maximum_supply.symbol;
-    check( sym.is_valid(), "invalid symbol name" );
-    check( maximum_supply.is_valid(), "invalid supply");
-    check( maximum_supply.amount > 0, "max-supply must be positive");
-
-    stats statstable( get_self(), sym.code().raw() );
-    auto existing = statstable.find( sym.code().raw() );
-    check( existing == statstable.end(), "token with symbol already exists" );
-
-    token::validproof proof = get_proof(proof_id);
-
-    add_or_assert(proof, caller);
-
-    token::st_create create_act = unpack<token::st_create>(proof.action.data);
-
-    check(maximum_supply.symbol.precision() == create_act.maximum_supply.symbol.precision(), "maximum_supply must use same precision");
-    check(maximum_supply.amount == create_act.maximum_supply.amount, "maximum_supply must be of the same amount");
-
-    statstable.emplace( get_self(), [&]( auto& s ) {
-       s.source_chain_id = proof.chain_id;
-       s.source_contract = proof.action.account;
-       s.source_symbol = create_act.maximum_supply.symbol.code();
-       s.supply = asset(0, maximum_supply.symbol);
-       s.max_supply    = maximum_supply;
-       s.issuer        = get_self();
-    });
-
+    auto global = global_config.get_or_create(_self, globalrow);
+    global.chain_id = chain_id;
+    global.bridge_contract = bridge_contract;
+    global.paired_chain_id = paired_chain_id;
+    global.paired_wraplock_contract = paired_wraplock_contract;
+    global.paired_token_contract = paired_token_contract;
+    global_config.set(global, _self);
 
 }
 
 //Issue mints the wrapped token, requires a proof of the lock action
-void token::issue(const name& caller, const uint64_t proof_id)
+void token::issue(const name& caller, const checksum256 action_receipt_digest)
 {
+
+    check(global_config.exists(), "contract must be initialized first");
     
-    token::validproof proof = get_proof(proof_id);
+    token::validproof proof = get_proof(action_receipt_digest);
     
     token::xfer lock_act = unpack<token::xfer>(proof.action.data);
+
+    auto global = global_config.get();
+    check(proof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+    check(proof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
    
     require_auth(caller);
-      
+
     add_or_assert(proof, caller);
 
     auto sym = lock_act.quantity.quantity.symbol;
@@ -84,23 +73,23 @@ void token::issue(const name& caller, const uint64_t proof_id)
 
     stats statstable( get_self(), sym.code().raw() );
     auto existing = statstable.find( sym.code().raw() );
+
+    // create if no existing matching symbol exists
+    if (existing == statstable.end()) {
+        statstable.emplace( get_self(), [&]( auto& s ) {
+           s.supply = asset(0, sym);
+           s.max_supply = asset((1LL<<62)-1, sym);
+           s.issuer = get_self();
+        });
+        existing = statstable.find( sym.code().raw() );
+    }
     
     check( existing != statstable.end(), "token with symbol does not exist, create token before issue" );
 
-
-    auto cid_index = _chainstable.get_index<"chainid"_n>();
-
-    auto chain_itr = cid_index.find(proof.chain_id);
-
-    check(chain_itr!= cid_index.end(), "chain not supported");
-
-    check(proof.action.account == chain_itr->wrap_contract, "action must originate from lock contract");
-    check(proof.action.name == "lock"_n, "must provide proof of token locking before issuing");
+    check(proof.action.name == "emitxfer"_n, "must provide proof of token locking before issuing");
 
     const auto& st = *existing;
-    //check( to == st.issuer, "tokens can only be issued to issuer account" );
 
-    //require_auth( st.issuer );
     check( lock_act.quantity.quantity.is_valid(), "invalid quantity" );
     check( lock_act.quantity.quantity.amount > 0, "must issue positive quantity" );
 
@@ -111,45 +100,37 @@ void token::issue(const name& caller, const uint64_t proof_id)
        s.supply += lock_act.quantity.quantity;
     });
 
-    add_internal_balance( lock_act.beneficiary, lock_act.quantity.quantity, lock_act.beneficiary );
+    add_balance( _self, lock_act.quantity.quantity, lock_act.beneficiary );
+
+    // ensure beneficiary has a balance
+    add_balance( lock_act.beneficiary, asset(0, lock_act.quantity.quantity.symbol), caller );
+
+    // transfer to beneficiary
+    action act(
+      permission_level{_self, "active"_n},
+      _self, "transfer"_n,
+      std::make_tuple(_self, lock_act.beneficiary, lock_act.quantity.quantity, ""_n)
+    );
+    act.send();
     
-}
-
-//locks a token amount in the reserve for an interchain transfer
-void token::lock(const name& owner,  const extended_asset& quantity, const name& beneficiary ){
-
-  require_auth(owner);
-
-  check(quantity.contract != _self, "cannot lock wrapped tokens");
-
-  sub_external_balance( owner, quantity );
-  add_reserve( quantity );
-
-  token::xfer x = {
-    .owner = owner,
-    .quantity = quantity,
-    .beneficiary = beneficiary
-  };
-
-  action act(
-    permission_level{_self, "active"_n},
-    _self, "emitxfer"_n,
-    std::make_tuple(x)
-  );
-  act.send();
-
 }
 
 //emits an xfer receipt to serve as proof in interchain transfers
 void token::emitxfer(const token::xfer& xfer){
+
+ check(global_config.exists(), "contract must be initialized first");
  
  require_auth(_self);
 
 }
 
-void token::retire(const name& owner,  const asset& quantity, const name& beneficiary )
+void token::retire(const name& owner,  const asset& quantity, const name& beneficiary)
 {
-    require_auth( _self );
+    check(global_config.exists(), "contract must be initialized first");
+
+    require_auth( owner );
+
+    auto global = global_config.get();
 
     auto sym = quantity.symbol;
     check( sym.is_valid(), "invalid symbol name" );
@@ -168,11 +149,11 @@ void token::retire(const name& owner,  const asset& quantity, const name& benefi
        s.supply -= quantity;
     });
 
-    sub_internal_balance( owner, quantity );
+    sub_balance( owner, quantity );
 
     token::xfer x = {
       .owner = owner,
-      .quantity = extended_asset(quantity, existing->source_contract),
+      .quantity = extended_asset(quantity, global.paired_token_contract),
       .beneficiary = beneficiary
     };
 
@@ -190,6 +171,8 @@ void token::transfer( const name&    from,
                       const asset&   quantity,
                       const string&  memo )
 {
+    check(global_config.exists(), "contract must be initialized first");
+
     check( from != to, "cannot transfer to self" );
     require_auth( from );
     check( is_account( to ), "to account does not exist");
@@ -207,68 +190,11 @@ void token::transfer( const name&    from,
 
     auto payer = has_auth( to ) ? to : from;
 
-    sub_internal_balance( from, quantity );
-    add_internal_balance( to, quantity, payer );
+    sub_balance( from, quantity );
+    add_balance( to, quantity, payer );
 }
 
-void token::sub_reserve( const extended_asset& value ){
-
-   //reserves res_acnts( get_self(), _self.value );
-
-   const auto& res = _reservestable.get( value.quantity.symbol.code().raw(), "no balance object found" );
-   check( res.balance.quantity.amount >= value.quantity.amount, "overdrawn balance" );
-
-   _reservestable.modify( res, _self, [&]( auto& a ) {
-         a.balance -= value;
-      });
-}
-
-void token::add_reserve(const extended_asset& value){
-
-   //reserves res_acnts( get_self(), _self.value );
-
-   auto res = _reservestable.find( value.quantity.symbol.code().raw() );
-   if( res == _reservestable.end() ) {
-      _reservestable.emplace( _self, [&]( auto& a ){
-        a.balance = value;
-      });
-   } else {
-      _reservestable.modify( res, _self, [&]( auto& a ) {
-        a.balance += value;
-      });
-   }
-
-}
-
-void token::sub_external_balance( const name& owner, const extended_asset& value ){
-
-   extaccounts from_acnts( get_self(), owner.value );
-
-   const auto& from = from_acnts.get( value.quantity.symbol.code().raw(), "no balance object found" );
-   check( from.balance.quantity.amount >= value.quantity.amount, "overdrawn balance" );
-
-   from_acnts.modify( from, owner, [&]( auto& a ) {
-         a.balance -= value;
-      });
-}
-
-void token::add_external_balance( const name& owner, const extended_asset& value, const name& ram_payer ){
-
-   extaccounts to_acnts( get_self(), owner.value );
-   auto to = to_acnts.find( value.quantity.symbol.code().raw() );
-   if( to == to_acnts.end() ) {
-      to_acnts.emplace( ram_payer, [&]( auto& a ){
-        a.balance = value;
-      });
-   } else {
-      to_acnts.modify( to, same_payer, [&]( auto& a ) {
-        a.balance += value;
-      });
-   }
-
-}
-
-void token::sub_internal_balance( const name& owner, const asset& value ){
+void token::sub_balance( const name& owner, const asset& value ){
 
    accounts from_acnts( get_self(), owner.value );
 
@@ -280,7 +206,7 @@ void token::sub_internal_balance( const name& owner, const asset& value ){
       });
 }
 
-void token::add_internal_balance( const name& owner, const asset& value, const name& ram_payer ){
+void token::add_balance( const name& owner, const asset& value, const name& ram_payer ){
 
    accounts to_acnts( get_self(), owner.value );
    auto to = to_acnts.find( value.symbol.code().raw() );
@@ -296,29 +222,10 @@ void token::add_internal_balance( const name& owner, const asset& value, const n
 
 }
 
-/*void token::sub_balance( const name& owner, const asset& value ) {
-
-   stats statstable( get_self(), value.symbol.code().raw() );
-   auto existing = statstable.find( value.symbol.code().raw() );
-
-   if (existing != statstable.end()) sub_internal_balance(owner,value);
-   else sub_external_balance(owner, value);
-
-}
-
-void token::add_balance( const name& owner, const asset& value, const name& ram_payer )
-{
-
-   stats statstable( get_self(), value.symbol.code().raw() );
-   auto existing = statstable.find( value.symbol.code().raw() );
-
-   if (existing != statstable.end()) add_internal_balance(owner,value, ram_payer);
-   else add_external_balance(owner, value, ram_payer);
-
-}
-*/
 void token::open( const name& owner, const symbol& symbol, const name& ram_payer )
 {
+   check(global_config.exists(), "contract must be initialized first");
+
    require_auth( ram_payer );
 
    check( is_account( owner ), "owner account does not exist" );
@@ -335,109 +242,36 @@ void token::open( const name& owner, const symbol& symbol, const name& ram_payer
         a.balance = asset{0, symbol};
       });
    }
+
 }
 
 void token::close( const name& owner, const symbol& symbol )
 {
+   check(global_config.exists(), "contract must be initialized first");
+
    require_auth( owner );
    accounts acnts( get_self(), owner.value );
    auto it = acnts.find( symbol.code().raw() );
    check( it != acnts.end(), "Balance row already deleted or never existed. Action won't have any effect." );
    check( it->balance.amount == 0, "Cannot close because the balance is not zero." );
    acnts.erase( it );
-}
-
-void token::deposit(name receiver, name code)
-{ 
-
-    auto transfer_data = unpack_action_data<st_transfer>();
-
-    print("transfer ", name{transfer_data.from}, " ",  name{transfer_data.to}, " ", transfer_data.quantity, "\n");
-    print("receiver: ", receiver, "\n");
-    print("code: ", code, "\n");
-    
-    extended_asset xquantity = extended_asset(transfer_data.quantity, code);
-
-    //if incoming transfer
-    if (transfer_data.from == "eosio.stake"_n) return ; //ignore unstaking transfers
-    else if (transfer_data.to == get_self() && code != get_self()){ 
-      //ignore outbound transfers from this contract, as well as inbound transfers of tokens internal to this contract
-      //otherwise, means it's a deposit of external token from user
-      add_external_balance(transfer_data.from, xquantity, transfer_data.from);
-
-    }
-
-}
-
-//withdraw tokens (requires a proof of redemption)
-void token::withdraw(const name& caller, const uint64_t proof_id){
-
-    require_auth( caller );
-
-    token::validproof proof = get_proof(proof_id);
-
-    token::xfer redeem_act = unpack<token::xfer>(proof.action.data);
-   
-    add_or_assert(proof, caller);
-
-    sub_reserve(redeem_act.quantity);
-    
-    action act(
-      permission_level{_self, "active"_n},
-      redeem_act.quantity.contract, "transfer"_n,
-      std::make_tuple(_self, redeem_act.beneficiary, redeem_act.quantity.quantity, ""_n )
-    );
-    act.send();
-
-}
-
-void token::addchain(const checksum256& chain_id, const name& wrap_contract){
-
-    require_auth( _self );
- 
-    auto cid_index =  _chainstable.get_index<"chainid"_n>();
-
-    auto c_itr = cid_index.find(chain_id);
-
-    check(c_itr == cid_index.end(), "chain already added");
-
-    _chainstable.emplace( get_self(), [&]( auto& c ) {
-       c.id = _chainstable.available_primary_key();;
-       c.chain_id = chain_id;
-       c.wrap_contract = wrap_contract;
-    });
-
-}
-
-void token::delchain(const checksum256& chain_id){
-
-   require_auth( _self );
-
-    auto cid_index =  _chainstable.get_index<"chainid"_n>();
-
-    auto c_itr = cid_index.find(chain_id);
-
-    check(c_itr != cid_index.end(), "chain doesn't exist");
-    
-    cid_index.erase(c_itr);
-
-}
-
-void token::test()
-{ 
-
-  print("test", "\n");
 
 }
 
 void token::clear()
 { 
+  check(global_config.exists(), "contract must be initialized first");
+
+  // todo - tidy this so all data is cleared (iterate over scopes)
+
+  // if (global_config.exists()) global_config.remove();
 
   accounts a_table( get_self(), "genesis11111"_n.value);
-  extaccounts e_table( get_self(), "genesis11111"_n.value);
 
   stats s1_table( get_self(), symbol_code("UTX").raw());
   stats s2_table( get_self(), symbol_code("OOO").raw());
+  stats s3_table( get_self(), symbol_code("EOS").raw());
+  stats s4_table( get_self(), symbol_code("TEST").raw());
 
   while (s1_table.begin() != s1_table.end()) {
     auto itr = s1_table.end();
@@ -451,40 +285,28 @@ void token::clear()
     s2_table.erase(itr);
   }
 
+  while (s3_table.begin() != s3_table.end()) {
+    auto itr = s3_table.end();
+    itr--;
+    s3_table.erase(itr);
+  }
+
+  while (s4_table.begin() != s4_table.end()) {
+    auto itr = s4_table.end();
+    itr--;
+    s4_table.erase(itr);
+  }
+
   while (a_table.begin() != a_table.end()) {
     auto itr = a_table.end();
     itr--;
     a_table.erase(itr);
   }
 
-  while (e_table.begin() != e_table.end()) {
-    auto itr = e_table.end();
+  while (_processedtable.begin() != _processedtable.end()) {
+    auto itr = _processedtable.end();
     itr--;
-    e_table.erase(itr);
-  }
-
-  while (_reservestable.begin() != _reservestable.end()) {
-    auto itr = _reservestable.end();
-    itr--;
-    _reservestable.erase(itr);
-  }
-
-  while (_proofstable.begin() != _proofstable.end()) {
-    auto itr = _proofstable.end();
-    itr--;
-    _proofstable.erase(itr);
-  }
-
-  while (_chainstable.begin() != _chainstable.end()) {
-    auto itr = _chainstable.end();
-    itr--;
-    _chainstable.erase(itr);
-  }
-
-  while (_proofstable.begin() != _proofstable.end()) {
-    auto itr = _proofstable.end();
-    itr--;
-    _proofstable.erase(itr);
+    _processedtable.erase(itr);
   }
 
 /*
