@@ -52,8 +52,7 @@ void token::issue(const name& caller, const bridge::heavyproof heavyproof, const
 
     token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
 
-    // todo - check whether required
-    // check(proof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+    check(heavyproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
 
     check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
 
