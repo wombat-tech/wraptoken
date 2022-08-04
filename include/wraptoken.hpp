@@ -6,6 +6,8 @@
 
 #include <string>
 
+#include <bridge.hpp>
+
 namespace eosiosystem {
    class system_contract;
 }
@@ -47,21 +49,6 @@ namespace eosio {
       public:
          using contract::contract;
 
-         struct [[eosio::table]] validproof {
-
-           uint64_t                        id;
-           action                          action;
-           checksum256                     chain_id;
-           checksum256                     receipt_digest;
-           name                            prover;
-
-           uint64_t primary_key()const { return id; }
-           checksum256 by_digest()const { return receipt_digest; }
-
-           EOSLIB_SERIALIZE( validproof, (id)(action)(chain_id)(receipt_digest)(prover))
-
-         };
-
          struct [[eosio::table]] processed {
 
            uint64_t                        id;
@@ -85,7 +72,8 @@ namespace eosio {
          void init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraptoken_contract, const name& paired_token_contract);
 
          [[eosio::action]]
-         void issue(const name& caller, const checksum256 action_receipt_digest);
+         // void issue(const name& caller, const checksum256 action_receipt_digest);
+         void issue(const name& caller, const bridge::heavyproof heavyproof, const bridge::actionproof actionproof);
 
 
          [[eosio::action]]
@@ -129,17 +117,13 @@ namespace eosio {
          typedef eosio::multi_index< "accounts"_n, account > accounts;
          typedef eosio::multi_index< "stat"_n, currency_stats > stats;
 
-         typedef eosio::multi_index< "proofs"_n, validproof,
-            indexed_by<"digest"_n, const_mem_fun<validproof, checksum256, &validproof::by_digest>>> proofstable;
       
          typedef eosio::multi_index< "processed"_n, processed,
             indexed_by<"digest"_n, const_mem_fun<processed, checksum256, &processed::by_digest>>> processedtable;
 
          using globaltable = eosio::singleton<"global"_n, global>;
 
-         void add_or_assert(const validproof& proof, const name& prover);
-
-         validproof get_proof(const checksum256 action_receipt_digest);
+         void add_or_assert(const checksum256 receipt_digest, const name& prover);
 
          globaltable global_config;
 
