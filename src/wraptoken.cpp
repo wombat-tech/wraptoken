@@ -106,6 +106,57 @@ void token::issue(const name& caller, const bridge::heavyproof heavyproof, const
     
 }
 
+void token::cancel(const name& caller, const bridge::heavyproof heavyproof, const bridge::actionproof actionproof)
+{
+    require_auth(caller);
+
+    check(global_config.exists(), "contract must be initialized first");
+    auto global = global_config.get();
+
+    // check proof against bridge
+    // will fail tx if prove is invalid
+    action checkproof_act(
+      permission_level{_self, "active"_n},
+      global.bridge_contract, "checkproofb"_n,
+      std::make_tuple(caller, heavyproof, actionproof)
+    );
+    checkproof_act.send();
+
+    token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
+
+    check(heavyproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+
+    check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
+
+    add_or_assert(actionproof.receipt.act_digest, caller);
+
+    auto sym = lock_act.quantity.quantity.symbol;
+    check( sym.is_valid(), "invalid symbol name" );
+    //check( memo.size() <= 256, "memo has more than 256 bytes" );
+
+    check(actionproof.action.name == "emitxfer"_n, "must provide proof of token locking before issuing");
+
+    check( lock_act.quantity.quantity.is_valid(), "invalid quantity" );
+    check( lock_act.quantity.quantity.amount > 0, "must issue positive quantity" );
+
+    check( lock_act.owner == caller, "caller must be owner of lock transfer");
+
+    token::xfer x = {
+      .owner = _self, // todo - check whether this should show as lock_act.beneficiary
+      .quantity = extended_asset(quantity, global.paired_token_contract),
+      .beneficiary = lock_act.owner
+    };
+
+    // return to lock_act.owner so can be withdrawn from wraplock
+    action act(
+      permission_level{_self, "active"_n},
+      _self, "emitxfer"_n,
+      std::make_tuple(x)
+    );
+    act.send();
+
+}
+
 //emits an xfer receipt to serve as proof in interchain transfers
 void token::emitxfer(const token::xfer& xfer){
 
