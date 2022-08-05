@@ -143,7 +143,7 @@ void token::cancel(const name& caller, const bridge::heavyproof heavyproof, cons
 
     token::xfer x = {
       .owner = _self, // todo - check whether this should show as lock_act.beneficiary
-      .quantity = extended_asset(quantity, global.paired_token_contract),
+      .quantity = extended_asset(lock_act.quantity.quantity, global.paired_token_contract),
       .beneficiary = lock_act.owner
     };
 
