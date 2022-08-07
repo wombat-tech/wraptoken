@@ -44,9 +44,9 @@ void token::issue(const name& caller, const bridge::heavyproof heavyproof, const
     // check proof against bridge
     // will fail tx if prove is invalid
     action checkproof_act(
-      permission_level{caller, "active"_n},
+      permission_level{_self, "active"_n},
       global.bridge_contract, "checkproofb"_n,
-      std::make_tuple(caller, heavyproof, actionproof)
+      std::make_tuple(heavyproof, actionproof)
     );
     checkproof_act.send();
 
@@ -116,9 +116,9 @@ void token::cancel(const name& caller, const bridge::heavyproof heavyproof, cons
     // check proof against bridge
     // will fail tx if prove is invalid
     action checkproof_act(
-      permission_level{caller, "active"_n},
+      permission_level{_self, "active"_n},
       global.bridge_contract, "checkproofb"_n,
-      std::make_tuple(caller, heavyproof, actionproof)
+      std::make_tuple(heavyproof, actionproof)
     );
     checkproof_act.send();
 
