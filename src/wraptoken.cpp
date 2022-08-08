@@ -39,9 +39,9 @@ void token::init(const checksum256& chain_id, const name& bridge_contract, const
 }
 
 //Issue mints the wrapped token, requires a proof of the lock action
-void token::issue(const name& caller, const bridge::heavyproof heavyproof, const bridge::actionproof actionproof)
+void token::issue(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
 {
-    require_auth(caller);
+    require_auth(prover);
 
     check(global_config.exists(), "contract must be initialized first");
     auto global = global_config.get();
@@ -51,17 +51,17 @@ void token::issue(const name& caller, const bridge::heavyproof heavyproof, const
     action checkproof_act(
       permission_level{_self, "active"_n},
       global.bridge_contract, "checkproofb"_n,
-      std::make_tuple(heavyproof, actionproof)
+      std::make_tuple(blockproof, actionproof)
     );
     checkproof_act.send();
 
     token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
 
-    check(heavyproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+    check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
 
     check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
 
-    add_or_assert(actionproof, caller);
+    add_or_assert(actionproof, prover);
 
     auto sym = lock_act.quantity.quantity.symbol;
     check( sym.is_valid(), "invalid symbol name" );
@@ -99,7 +99,7 @@ void token::issue(const name& caller, const bridge::heavyproof heavyproof, const
     add_balance( _self, lock_act.quantity.quantity, lock_act.beneficiary );
 
     // ensure beneficiary has a balance
-    add_balance( lock_act.beneficiary, asset(0, lock_act.quantity.quantity.symbol), caller );
+    add_balance( lock_act.beneficiary, asset(0, lock_act.quantity.quantity.symbol), prover );
 
     // transfer to beneficiary
     action act(
@@ -111,9 +111,9 @@ void token::issue(const name& caller, const bridge::heavyproof heavyproof, const
     
 }
 
-void token::cancel(const name& caller, const bridge::heavyproof heavyproof, const bridge::actionproof actionproof)
+void token::cancel(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
 {
-    require_auth(caller);
+    require_auth(prover);
 
     check(global_config.exists(), "contract must be initialized first");
     auto global = global_config.get();
@@ -123,17 +123,17 @@ void token::cancel(const name& caller, const bridge::heavyproof heavyproof, cons
     action checkproof_act(
       permission_level{_self, "active"_n},
       global.bridge_contract, "checkproofb"_n,
-      std::make_tuple(heavyproof, actionproof)
+      std::make_tuple(blockproof, actionproof)
     );
     checkproof_act.send();
 
     token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
 
-    check(heavyproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+    check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
 
     check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
 
-    add_or_assert(actionproof, caller);
+    add_or_assert(actionproof, prover);
 
     auto sym = lock_act.quantity.quantity.symbol;
     check( sym.is_valid(), "invalid symbol name" );
@@ -144,7 +144,7 @@ void token::cancel(const name& caller, const bridge::heavyproof heavyproof, cons
     check( lock_act.quantity.quantity.is_valid(), "invalid quantity" );
     check( lock_act.quantity.quantity.amount > 0, "must issue positive quantity" );
 
-    check( lock_act.owner == caller, "caller must be owner of lock transfer");
+    check( lock_act.owner == prover, "caller must be owner of lock transfer");
 
     token::xfer x = {
       .owner = _self, // todo - check whether this should show as lock_act.beneficiary

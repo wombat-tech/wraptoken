@@ -72,10 +72,10 @@ namespace eosio {
          void init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraptoken_contract, const name& paired_token_contract);
 
          [[eosio::action]]
-         void issue(const name& caller, const bridge::heavyproof heavyproof, const bridge::actionproof actionproof);
+         void issue(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
 
          [[eosio::action]]
-         void cancel(const name& caller, const bridge::heavyproof heavyproof, const bridge::actionproof actionproof);
+         void cancel(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
 
          [[eosio::action]]
          void retire(const name& owner,  const asset& quantity, const name& beneficiary);
