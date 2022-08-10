@@ -38,26 +38,11 @@ void token::init(const checksum256& chain_id, const name& bridge_contract, const
 
 }
 
-//Issue mints the wrapped token, requires a proof of the lock action
-void token::issue(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
+void token::_issue(const name& prover, const bridge::actionproof actionproof)
 {
-    require_auth(prover);
-
-    check(global_config.exists(), "contract must be initialized first");
     auto global = global_config.get();
 
-    // check proof against bridge
-    // will fail tx if prove is invalid
-    action checkproof_act(
-      permission_level{_self, "active"_n},
-      global.bridge_contract, "checkproofb"_n,
-      std::make_tuple(blockproof, actionproof)
-    );
-    checkproof_act.send();
-
     token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
-
-    check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
 
     check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
 
@@ -111,12 +96,15 @@ void token::issue(const name& prover, const bridge::heavyproof blockproof, const
     
 }
 
-void token::cancel(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
+// mints the wrapped token, requires heavy block proof and action proof
+void token::issuea(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
 {
     require_auth(prover);
 
     check(global_config.exists(), "contract must be initialized first");
     auto global = global_config.get();
+
+    check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
 
     // check proof against bridge
     // will fail tx if prove is invalid
@@ -127,9 +115,36 @@ void token::cancel(const name& prover, const bridge::heavyproof blockproof, cons
     );
     checkproof_act.send();
 
-    token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
+    _issue(prover, actionproof);
+}
+
+// mints the wrapped token, requires light block proof and action proof
+void token::issueb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof)
+{
+    require_auth(prover);
+
+    check(global_config.exists(), "contract must be initialized first");
+    auto global = global_config.get();
 
     check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+
+    // check proof against bridge
+    // will fail tx if prove is invalid
+    action checkproof_act(
+      permission_level{_self, "active"_n},
+      global.bridge_contract, "checkproofc"_n,
+      std::make_tuple(blockproof, actionproof)
+    );
+    checkproof_act.send();
+
+    _issue(prover, actionproof);
+}
+
+void token::_cancel(const name& prover, const bridge::actionproof actionproof)
+{
+    auto global = global_config.get();
+
+    token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
 
     check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
 
@@ -143,8 +158,6 @@ void token::cancel(const name& prover, const bridge::heavyproof blockproof, cons
 
     check( lock_act.quantity.quantity.is_valid(), "invalid quantity" );
     check( lock_act.quantity.quantity.amount > 0, "must issue positive quantity" );
-
-    check( lock_act.owner == prover, "caller must be owner of lock transfer");
 
     token::xfer x = {
       .owner = _self, // todo - check whether this should show as lock_act.beneficiary
@@ -160,6 +173,48 @@ void token::cancel(const name& prover, const bridge::heavyproof blockproof, cons
     );
     act.send();
 
+}
+
+void token::cancela(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
+{
+    require_auth(prover);
+
+    check(global_config.exists(), "contract must be initialized first");
+    auto global = global_config.get();
+
+    check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+
+    // check proof against bridge
+    // will fail tx if prove is invalid
+    action checkproof_act(
+      permission_level{_self, "active"_n},
+      global.bridge_contract, "checkproofb"_n,
+      std::make_tuple(blockproof, actionproof)
+    );
+    checkproof_act.send();
+
+    _cancel(prover, actionproof);
+}
+
+void token::cancelb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof)
+{
+    require_auth(prover);
+
+    check(global_config.exists(), "contract must be initialized first");
+    auto global = global_config.get();
+
+    check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+
+    // check proof against bridge
+    // will fail tx if prove is invalid
+    action checkproof_act(
+      permission_level{_self, "active"_n},
+      global.bridge_contract, "checkproofc"_n,
+      std::make_tuple(blockproof, actionproof)
+    );
+    checkproof_act.send();
+
+    _cancel(prover, actionproof);
 }
 
 //emits an xfer receipt to serve as proof in interchain transfers

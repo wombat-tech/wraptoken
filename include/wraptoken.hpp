@@ -71,11 +71,21 @@ namespace eosio {
          [[eosio::action]]
          void init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraptoken_contract, const name& paired_token_contract);
 
-         [[eosio::action]]
-         void issue(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
+         void _issue(const name& prover, const bridge::actionproof actionproof);
 
          [[eosio::action]]
-         void cancel(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
+         void issuea(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
+
+         [[eosio::action]]
+         void issueb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof);
+
+         void _cancel(const name& prover, const bridge::actionproof actionproof);
+
+         [[eosio::action]]
+         void cancela(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
+
+         [[eosio::action]]
+         void cancelb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof);
 
          [[eosio::action]]
          void retire(const name& owner,  const asset& quantity, const name& beneficiary);
