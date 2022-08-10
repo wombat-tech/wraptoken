@@ -184,6 +184,8 @@ void token::cancela(const name& prover, const bridge::heavyproof blockproof, con
 
     check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
 
+    check(current_time_point().sec_since_epoch() > blockproof.blocktoprove.block.header.timestamp.to_time_point().sec_since_epoch() + 900, "must wait 15 minutes to cancel");
+
     // check proof against bridge
     // will fail tx if prove is invalid
     action checkproof_act(
@@ -204,6 +206,8 @@ void token::cancelb(const name& prover, const bridge::lightproof blockproof, con
     auto global = global_config.get();
 
     check(blockproof.chain_id == global.paired_chain_id, "proof chain does not match paired chain");
+
+    check(current_time_point().sec_since_epoch() > blockproof.header.timestamp.to_time_point().sec_since_epoch() + 900, "must wait 15 minutes to cancel");
 
     // check proof against bridge
     // will fail tx if prove is invalid
