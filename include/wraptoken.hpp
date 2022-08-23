@@ -19,6 +19,7 @@ namespace eosio {
    class [[eosio::contract("wraptoken")]] token : public contract {
       private:
 
+         // structure used for globals - see `init` action for documentation
          struct [[eosio::table]] global {
             checksum256   chain_id;
             name          bridge_contract;
@@ -27,24 +28,28 @@ namespace eosio {
             name          paired_token_contract;
          } globalrow;
 
+         // structure to keep track of users for account table scope iteration
          struct [[eosio::table]] user {
             name     account;
 
             uint64_t primary_key() const {return account.value;}
          };
 
+         // structure to keep track of symbols for symbols table scope iteration
          struct [[eosio::table]] active_symbol {
             symbol     symbol;
 
             uint64_t primary_key() const {return symbol.code().raw();}
          };
 
+         // structure for keeping user balances, scoped by user
          struct [[eosio::table]] account {
             asset    balance;
 
             uint64_t primary_key()const { return balance.symbol.code().raw(); }
          };
 
+         // structure for token stats and wallet compatibility
          struct [[eosio::table]] currency_stats {
 
             asset         supply;
@@ -54,13 +59,7 @@ namespace eosio {
             uint64_t primary_key()const { return supply.symbol.code().raw(); }
          };
 
-
-         void sub_balance( const name& owner, const asset& value );
-         void add_balance( const name& owner, const asset& value, const name& ram_payer );
-
-      public:
-         using contract::contract;
-
+         // structure used for retaining action receipt digests of accepted proven actions, to prevent replay attacks
          struct [[eosio::table]] processed {
 
            uint64_t                        id;
@@ -73,6 +72,16 @@ namespace eosio {
 
          };
 
+         void add_or_assert(const bridge::actionproof& actionproof, const name& payer);
+         void sub_balance( const name& owner, const asset& value );
+         void add_balance( const name& owner, const asset& value, const name& ram_payer );
+         void _issue(const name& prover, const bridge::actionproof actionproof);
+         void _cancel(const name& prover, const bridge::actionproof actionproof);
+
+      public:
+         using contract::contract;
+
+         // structure used for the `emitxfer` action used in proof on native token chain
          struct [[eosio::table]] xfer {
            name             owner;
            extended_asset   quantity;
@@ -80,25 +89,67 @@ namespace eosio {
          };
 
 
+         /**
+          * Allows contract account to set which chains and associated contracts are used for all interchain transfers.
+          *
+          * @param chain_id - the id of the chain running this contract
+          * @param bridge_contract - the bridge contract on this chain
+          * @param paired_chain_id - the id of the chain hosting the native tokens
+          * @param paired_wraplock_contract - the wraplock contract on the native token chain
+          * @param paired_token_contract - the token contract on the native chain being enabled for interchain transfers
+          */
          [[eosio::action]]
          void init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraplock_contract, const name& paired_token_contract);
 
-         void _issue(const name& prover, const bridge::actionproof actionproof);
-
+         /**
+          * Allows `prover` account to issue wrapped tokens and send them to the beneficiary indentified in the `actionproof`.
+          *
+          * @param prover - the calling account whose ram is used for storing the action receipt digest to prevent replay attacks
+          * @param blockproof - the heavy proof data structure
+          * @param actionproof - the proof structure for the `emitxfer` action associated with the locking transfer action on the native chain
+          */
          [[eosio::action]]
          void issuea(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
 
+         /**
+          * Allows `prover` account to issue wrapped tokens and send them to the beneficiary indentified in the `actionproof`.
+          *
+          * @param prover - the calling account whose ram is used for storing the action receipt digest to prevent replay attacks
+          * @param blockproof - the light proof data structure
+          * @param actionproof - the proof structure for the `emitxfer` action associated with the locking transfer action on the native chain
+          */
          [[eosio::action]]
          void issueb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof);
 
-         void _cancel(const name& prover, const bridge::actionproof actionproof);
-
+         /**
+          * Allows `prover` account to cancel a token transfer and return them to the beneficiary indentified in the `actionproof`.
+          *
+          * @param prover - the calling account whose ram is used for storing the action receipt digest to prevent replay attacks
+          * @param blockproof - the heavy proof data structure
+          * @param actionproof - the proof structure for the `emitxfer` action associated with the locking transfer action on the native chain
+          */
          [[eosio::action]]
          void cancela(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof);
 
+         /**
+          * Allows `prover` account to cancel a token transfer and return them to the beneficiary indentified in the `actionproof`.
+          *
+          * @param prover - the calling account whose ram is used for storing the action receipt digest to prevent replay attacks
+          * @param blockproof - the light proof data structure
+          * @param actionproof - the proof structure for the `emitxfer` action associated with the locking transfer action on the native chain
+          */
          [[eosio::action]]
          void cancelb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof);
 
+         /**
+          * Allows `owner` account to retire the `quantity` of wrapped tokens and calls the `emitxfer` action inline so that can be used
+          * as the basis for a proof of locking for the withdraw actions on the native chain.
+          *
+          * @param from - the owner of the tokens to be sent to the native token chain
+          * @param to - this contract account
+          * @param quantity - the asset to be sent to the native token chain
+          * @param memo - the beneficiary account on the native token chain
+          */
          [[eosio::action]]
          void retire(const name& owner,  const asset& quantity, const name& beneficiary);
 
@@ -148,23 +199,21 @@ namespace eosio {
 
          using globaltable = eosio::singleton<"global"_n, global>;
 
-         void add_or_assert(const bridge::actionproof& actionproof, const name& payer);
-
          globaltable global_config;
 
-        users _userstable;
-        symbols _symbolstable;
-        processedtable _processedtable;
+         users _userstable;
+         symbols _symbolstable;
+         processedtable _processedtable;
 
-        token( name receiver, name code, datastream<const char*> ds ) :
-        contract(receiver, code, ds),
-        global_config(_self, _self.value),
-        _userstable(_self, _self.value),
-        _symbolstable(_self, _self.value),
-        _processedtable(_self, _self.value)
-        {
-        
-        }
+         token( name receiver, name code, datastream<const char*> ds ) :
+         contract(receiver, code, ds),
+         global_config(_self, _self.value),
+         _userstable(_self, _self.value),
+         _symbolstable(_self, _self.value),
+         _processedtable(_self, _self.value)
+         {
+
+         }
         
    };
 
