@@ -81,6 +81,22 @@ void token::_issue(const name& prover, const bridge::actionproof actionproof)
        s.supply += lock_act.quantity.quantity;
     });
 
+    // add user to users table if not present
+    auto existing_user = _userstable.find( lock_act.beneficiary.value );
+    if (existing_user == _userstable.end()) {
+        _userstable.emplace( prover, [&]( auto& u ){
+            u.account = lock_act.beneficiary;
+        });
+    }
+
+    // add symbol to symbols table if not present
+    auto existing_symbol = _symbolstable.find( lock_act.quantity.quantity.symbol.code().raw() );
+    if (existing_symbol == _symbolstable.end()) {
+        _symbolstable.emplace( prover, [&]( auto& s ){
+            s.symbol = lock_act.quantity.quantity.symbol;
+        });
+    }
+
     add_balance( _self, lock_act.quantity.quantity, lock_act.beneficiary );
 
     // ensure beneficiary has a balance
@@ -349,6 +365,14 @@ void token::open( const name& owner, const symbol& symbol, const name& ram_payer
       });
    }
 
+   // add user to users table if not present
+   auto existing_user = _userstable.find( owner.value );
+   if (existing_user == _userstable.end()) {
+      _userstable.emplace( owner, [&]( auto& u ){
+         u.account = owner;
+      });
+   }
+
 }
 
 void token::close( const name& owner, const symbol& symbol )
@@ -362,6 +386,12 @@ void token::close( const name& owner, const symbol& symbol )
    check( it->balance.amount == 0, "Cannot close because the balance is not zero." );
    acnts.erase( it );
 
+   // remove user from users table if present
+   auto existing_user = _userstable.find( owner.value );
+   if (existing_user != _userstable.end()) {
+      _userstable.erase(existing_user);
+   }
+
 }
 
 void token::clear()
@@ -372,41 +402,34 @@ void token::clear()
 
   // if (global_config.exists()) global_config.remove();
 
-  accounts a_table( get_self(), "genesis11111"_n.value);
-
-  stats s1_table( get_self(), symbol_code("UTX").raw());
-  stats s2_table( get_self(), symbol_code("OOO").raw());
-  stats s3_table( get_self(), symbol_code("EOS").raw());
-  stats s4_table( get_self(), symbol_code("TEST").raw());
-
-  while (s1_table.begin() != s1_table.end()) {
-    auto itr = s1_table.end();
+  // remove users and account balances
+  while (_userstable.begin() != _userstable.end()) {
+    auto itr = _userstable.end();
     itr--;
-    s1_table.erase(itr);
+
+    accounts a_table( get_self(), itr->account.value);
+    while (a_table.begin() != a_table.end()) {
+      auto itr = a_table.end();
+      itr--;
+      a_table.erase(itr);
+    }
+
+    _userstable.erase(itr);
   }
 
-  while (s2_table.begin() != s2_table.end()) {
-    auto itr = s2_table.end();
+  // remove symbols and stats balances
+  while (_symbolstable.begin() != _symbolstable.end()) {
+    auto itr = _symbolstable.end();
     itr--;
-    s2_table.erase(itr);
-  }
 
-  while (s3_table.begin() != s3_table.end()) {
-    auto itr = s3_table.end();
-    itr--;
-    s3_table.erase(itr);
-  }
+    stats s_table( get_self(), symbol_code("UTX").raw());
+    while (s_table.begin() != s_table.end()) {
+      auto itr = s_table.end();
+      itr--;
+      s_table.erase(itr);
+    }
 
-  while (s4_table.begin() != s4_table.end()) {
-    auto itr = s4_table.end();
-    itr--;
-    s4_table.erase(itr);
-  }
-
-  while (a_table.begin() != a_table.end()) {
-    auto itr = a_table.end();
-    itr--;
-    a_table.erase(itr);
+    _symbolstable.erase(itr);
   }
 
   while (_processedtable.begin() != _processedtable.end()) {
@@ -415,13 +438,6 @@ void token::clear()
     _processedtable.erase(itr);
   }
 
-/*
-accounts
-
-proofstable
-
-stats
-*/
 }
 
 } /// namespace eosio

@@ -27,6 +27,18 @@ namespace eosio {
             name          paired_token_contract;
          } globalrow;
 
+         struct [[eosio::table]] user {
+            name     account;
+
+            uint64_t primary_key() const {return account.value;}
+         };
+
+         struct [[eosio::table]] active_symbol {
+            symbol     symbol;
+
+            uint64_t primary_key() const {return symbol.code().raw();}
+         };
+
          struct [[eosio::table]] account {
             asset    balance;
 
@@ -69,7 +81,7 @@ namespace eosio {
 
 
          [[eosio::action]]
-         void init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraptoken_contract, const name& paired_token_contract);
+         void init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraplock_contract, const name& paired_token_contract);
 
          void _issue(const name& prover, const bridge::actionproof actionproof);
 
@@ -125,6 +137,8 @@ namespace eosio {
          }
 
 
+         typedef eosio::multi_index< "users"_n, user > users;
+         typedef eosio::multi_index< "symbols"_n, active_symbol > symbols;
          typedef eosio::multi_index< "accounts"_n, account > accounts;
          typedef eosio::multi_index< "stat"_n, currency_stats > stats;
 
@@ -138,11 +152,15 @@ namespace eosio {
 
          globaltable global_config;
 
+        users _userstable;
+        symbols _symbolstable;
         processedtable _processedtable;
 
         token( name receiver, name code, datastream<const char*> ds ) :
         contract(receiver, code, ds),
         global_config(_self, _self.value),
+        _userstable(_self, _self.value),
+        _symbolstable(_self, _self.value),
         _processedtable(_self, _self.value)
         {
         
