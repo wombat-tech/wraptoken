@@ -398,8 +398,6 @@ void token::clear()
 { 
   check(global_config.exists(), "contract must be initialized first");
 
-  // todo - tidy this so all data is cleared (iterate over scopes)
-
   // if (global_config.exists()) global_config.remove();
 
   // remove users and account balances
