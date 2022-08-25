@@ -420,7 +420,7 @@ void token::clear()
     auto itr = _symbolstable.end();
     itr--;
 
-    stats s_table( get_self(), symbol_code("UTX").raw());
+    stats s_table( get_self(), itr->symbol.code().raw());
     while (s_table.begin() != s_table.end()) {
       auto itr = s_table.end();
       itr--;
