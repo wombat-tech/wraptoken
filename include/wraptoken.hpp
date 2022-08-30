@@ -28,20 +28,6 @@ namespace eosio {
             name          paired_token_contract;
          } globalrow;
 
-         // structure to keep track of users for account table scope iteration
-         struct [[eosio::table]] user {
-            name     account;
-
-            uint64_t primary_key() const {return account.value;}
-         };
-
-         // structure to keep track of symbols for symbols table scope iteration
-         struct [[eosio::table]] active_symbol {
-            symbol     symbol;
-
-            uint64_t primary_key() const {return symbol.code().raw();}
-         };
-
          // structure for keeping user balances, scoped by user
          struct [[eosio::table]] account {
             asset    balance;
@@ -171,7 +157,7 @@ namespace eosio {
          void emitxfer(const token::xfer& xfer);
 
          [[eosio::action]]
-         void clear();
+         void clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols);
 
          static asset get_supply( const name& token_contract_account, const symbol_code& sym_code )
          {
@@ -188,8 +174,6 @@ namespace eosio {
          }
 
 
-         typedef eosio::multi_index< "users"_n, user > users;
-         typedef eosio::multi_index< "symbols"_n, active_symbol > symbols;
          typedef eosio::multi_index< "accounts"_n, account > accounts;
          typedef eosio::multi_index< "stat"_n, currency_stats > stats;
 
@@ -201,15 +185,11 @@ namespace eosio {
 
          globaltable global_config;
 
-         users _userstable;
-         symbols _symbolstable;
          processedtable _processedtable;
 
          token( name receiver, name code, datastream<const char*> ds ) :
          contract(receiver, code, ds),
          global_config(_self, _self.value),
-         _userstable(_self, _self.value),
-         _symbolstable(_self, _self.value),
          _processedtable(_self, _self.value)
          {
 

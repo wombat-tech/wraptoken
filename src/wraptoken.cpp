@@ -81,22 +81,6 @@ void token::_issue(const name& prover, const bridge::actionproof actionproof)
        s.supply += lock_act.quantity.quantity;
     });
 
-    // add user to users table if not present
-    auto existing_user = _userstable.find( lock_act.beneficiary.value );
-    if (existing_user == _userstable.end()) {
-        _userstable.emplace( prover, [&]( auto& u ){
-            u.account = lock_act.beneficiary;
-        });
-    }
-
-    // add symbol to symbols table if not present
-    auto existing_symbol = _symbolstable.find( lock_act.quantity.quantity.symbol.code().raw() );
-    if (existing_symbol == _symbolstable.end()) {
-        _symbolstable.emplace( prover, [&]( auto& s ){
-            s.symbol = lock_act.quantity.quantity.symbol;
-        });
-    }
-
     add_balance( _self, lock_act.quantity.quantity, lock_act.beneficiary );
 
     // ensure beneficiary has a balance
@@ -365,14 +349,6 @@ void token::open( const name& owner, const symbol& symbol, const name& ram_payer
       });
    }
 
-   // add user to users table if not present
-   auto existing_user = _userstable.find( owner.value );
-   if (existing_user == _userstable.end()) {
-      _userstable.emplace( owner, [&]( auto& u ){
-         u.account = owner;
-      });
-   }
-
 }
 
 void token::close( const name& owner, const symbol& symbol )
@@ -386,48 +362,36 @@ void token::close( const name& owner, const symbol& symbol )
    check( it->balance.amount == 0, "Cannot close because the balance is not zero." );
    acnts.erase( it );
 
-   // remove user from users table if present
-   auto existing_user = _userstable.find( owner.value );
-   if (existing_user != _userstable.end()) {
-      _userstable.erase(existing_user);
-   }
-
 }
 
-void token::clear()
+void token::clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols)
 { 
   check(global_config.exists(), "contract must be initialized first");
 
   // if (global_config.exists()) global_config.remove();
 
   // remove users and account balances
-  while (_userstable.begin() != _userstable.end()) {
-    auto itr = _userstable.end();
-    itr--;
+  for (name account: user_accounts) {
 
-    accounts a_table( get_self(), itr->account.value);
+    accounts a_table( get_self(), account.value);
     while (a_table.begin() != a_table.end()) {
       auto itr = a_table.end();
       itr--;
       a_table.erase(itr);
     }
 
-    _userstable.erase(itr);
   }
 
   // remove symbols and stats balances
-  while (_symbolstable.begin() != _symbolstable.end()) {
-    auto itr = _symbolstable.end();
-    itr--;
+  for (symbol symbol: symbols) {
 
-    stats s_table( get_self(), itr->symbol.code().raw());
+    stats s_table( get_self(), symbol.code().raw());
     while (s_table.begin() != s_table.end()) {
       auto itr = s_table.end();
       itr--;
       s_table.erase(itr);
     }
 
-    _symbolstable.erase(itr);
   }
 
   while (_processedtable.begin() != _processedtable.end()) {
