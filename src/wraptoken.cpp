@@ -4,7 +4,7 @@ namespace eosio {
 
 
 //adds a proof to the list of processed proofs (throws an exception if proof already exists)
-void token::add_or_assert(const bridge::actionproof& actionproof, const name& payer){
+void wraptoken::add_or_assert(const bridge::actionproof& actionproof, const name& payer){
 
     auto pid_index = _processedtable.get_index<"digest"_n>();
 
@@ -24,7 +24,7 @@ void token::add_or_assert(const bridge::actionproof& actionproof, const name& pa
 
 }
 
-void token::init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraplock_contract, const name& paired_token_contract)
+void wraptoken::init(const checksum256& chain_id, const name& bridge_contract, const checksum256& paired_chain_id, const name& paired_wraplock_contract, const name& paired_token_contract)
 {
     require_auth( _self );
 
@@ -38,11 +38,11 @@ void token::init(const checksum256& chain_id, const name& bridge_contract, const
 
 }
 
-void token::_issue(const name& prover, const bridge::actionproof actionproof)
+void wraptoken::_issue(const name& prover, const bridge::actionproof actionproof)
 {
     auto global = global_config.get();
 
-    token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
+    wraptoken::xfer lock_act = unpack<wraptoken::xfer>(actionproof.action.data);
 
     check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
 
@@ -97,7 +97,7 @@ void token::_issue(const name& prover, const bridge::actionproof actionproof)
 }
 
 // mints the wrapped token, requires heavy block proof and action proof
-void token::issuea(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
+void wraptoken::issuea(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
 {
     require_auth(prover);
 
@@ -119,7 +119,7 @@ void token::issuea(const name& prover, const bridge::heavyproof blockproof, cons
 }
 
 // mints the wrapped token, requires light block proof and action proof
-void token::issueb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof)
+void wraptoken::issueb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof)
 {
     require_auth(prover);
 
@@ -140,11 +140,11 @@ void token::issueb(const name& prover, const bridge::lightproof blockproof, cons
     _issue(prover, actionproof);
 }
 
-void token::_cancel(const name& prover, const bridge::actionproof actionproof)
+void wraptoken::_cancel(const name& prover, const bridge::actionproof actionproof)
 {
     auto global = global_config.get();
 
-    token::xfer lock_act = unpack<token::xfer>(actionproof.action.data);
+    wraptoken::xfer lock_act = unpack<wraptoken::xfer>(actionproof.action.data);
 
     check(actionproof.action.account == global.paired_wraplock_contract, "proof account does not match paired wraplock account");
 
@@ -159,7 +159,7 @@ void token::_cancel(const name& prover, const bridge::actionproof actionproof)
     check( lock_act.quantity.quantity.is_valid(), "invalid quantity" );
     check( lock_act.quantity.quantity.amount > 0, "must issue positive quantity" );
 
-    token::xfer x = {
+    wraptoken::xfer x = {
       .owner = _self, // todo - check whether this should show as lock_act.beneficiary
       .quantity = extended_asset(lock_act.quantity.quantity, global.paired_token_contract),
       .beneficiary = lock_act.owner
@@ -175,7 +175,7 @@ void token::_cancel(const name& prover, const bridge::actionproof actionproof)
 
 }
 
-void token::cancela(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
+void wraptoken::cancela(const name& prover, const bridge::heavyproof blockproof, const bridge::actionproof actionproof)
 {
     require_auth(prover);
 
@@ -198,7 +198,7 @@ void token::cancela(const name& prover, const bridge::heavyproof blockproof, con
     _cancel(prover, actionproof);
 }
 
-void token::cancelb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof)
+void wraptoken::cancelb(const name& prover, const bridge::lightproof blockproof, const bridge::actionproof actionproof)
 {
     require_auth(prover);
 
@@ -222,7 +222,7 @@ void token::cancelb(const name& prover, const bridge::lightproof blockproof, con
 }
 
 //emits an xfer receipt to serve as proof in interchain transfers
-void token::emitxfer(const token::xfer& xfer){
+void wraptoken::emitxfer(const wraptoken::xfer& xfer){
 
  check(global_config.exists(), "contract must be initialized first");
  
@@ -230,7 +230,7 @@ void token::emitxfer(const token::xfer& xfer){
 
 }
 
-void token::retire(const name& owner,  const asset& quantity, const name& beneficiary)
+void wraptoken::retire(const name& owner,  const asset& quantity, const name& beneficiary)
 {
     check(global_config.exists(), "contract must be initialized first");
 
@@ -257,7 +257,7 @@ void token::retire(const name& owner,  const asset& quantity, const name& benefi
 
     sub_balance( owner, quantity );
 
-    token::xfer x = {
+    wraptoken::xfer x = {
       .owner = owner,
       .quantity = extended_asset(quantity, global.paired_token_contract),
       .beneficiary = beneficiary
@@ -272,7 +272,7 @@ void token::retire(const name& owner,  const asset& quantity, const name& benefi
 
 }
 
-void token::transfer( const name&    from,
+void wraptoken::transfer( const name&    from,
                       const name&    to,
                       const asset&   quantity,
                       const string&  memo )
@@ -300,7 +300,7 @@ void token::transfer( const name&    from,
     add_balance( to, quantity, payer );
 }
 
-void token::sub_balance( const name& owner, const asset& value ){
+void wraptoken::sub_balance( const name& owner, const asset& value ){
 
    accounts from_acnts( get_self(), owner.value );
 
@@ -312,7 +312,7 @@ void token::sub_balance( const name& owner, const asset& value ){
       });
 }
 
-void token::add_balance( const name& owner, const asset& value, const name& ram_payer ){
+void wraptoken::add_balance( const name& owner, const asset& value, const name& ram_payer ){
 
    accounts to_acnts( get_self(), owner.value );
    auto to = to_acnts.find( value.symbol.code().raw() );
@@ -328,7 +328,7 @@ void token::add_balance( const name& owner, const asset& value, const name& ram_
 
 }
 
-void token::open( const name& owner, const symbol& symbol, const name& ram_payer )
+void wraptoken::open( const name& owner, const symbol& symbol, const name& ram_payer )
 {
    check(global_config.exists(), "contract must be initialized first");
 
@@ -351,7 +351,7 @@ void token::open( const name& owner, const symbol& symbol, const name& ram_payer
 
 }
 
-void token::close( const name& owner, const symbol& symbol )
+void wraptoken::close( const name& owner, const symbol& symbol )
 {
    check(global_config.exists(), "contract must be initialized first");
 
@@ -364,13 +364,13 @@ void token::close( const name& owner, const symbol& symbol )
 
 }
 
-void token::clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols)
+void wraptoken::clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols)
 { 
   check(global_config.exists(), "contract must be initialized first");
 
   // if (global_config.exists()) global_config.remove();
 
-  // remove users and account balances
+  // remove account balances
   for (name account: user_accounts) {
 
     accounts a_table( get_self(), account.value);
@@ -382,7 +382,7 @@ void token::clear(const std::vector<name> user_accounts, const std::vector<symbo
 
   }
 
-  // remove symbols and stats balances
+  // remove stats balances
   for (symbol symbol: symbols) {
 
     stats s_table( get_self(), symbol.code().raw());

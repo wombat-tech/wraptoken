@@ -16,7 +16,7 @@ namespace eosio {
 
    using std::string;
 
-   class [[eosio::contract("wraptoken")]] token : public contract {
+   class [[eosio::contract("wraptoken")]] wraptoken : public contract {
       private:
 
          // structure used for globals - see `init` action for documentation
@@ -154,7 +154,7 @@ namespace eosio {
          void close( const name& owner, const symbol& symbol );
 
          [[eosio::action]]
-         void emitxfer(const token::xfer& xfer);
+         void emitxfer(const wraptoken::xfer& xfer);
 
          [[eosio::action]]
          void clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols);
@@ -187,7 +187,7 @@ namespace eosio {
 
          processedtable _processedtable;
 
-         token( name receiver, name code, datastream<const char*> ds ) :
+         wraptoken( name receiver, name code, datastream<const char*> ds ) :
          contract(receiver, code, ds),
          global_config(_self, _self.value),
          _processedtable(_self, _self.value)
