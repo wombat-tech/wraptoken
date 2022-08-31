@@ -7,6 +7,7 @@
 #include <string>
 
 #include <bridge.hpp>
+#include <eosio.token.hpp>
 
 namespace eosiosystem {
    class system_contract;
@@ -173,6 +174,10 @@ namespace eosio {
             return ac.balance;
          }
 
+         using transfer_action = action_wrapper<"transfer"_n, &token::transfer>;
+         using heavyproof_action = action_wrapper<"checkproofb"_n, &bridge::checkproofb>;
+         using lightproof_action = action_wrapper<"checkproofc"_n, &bridge::checkproofc>;
+         using emitxfer_action = action_wrapper<"emitxfer"_n, &wraptoken::emitxfer>;
 
          typedef eosio::multi_index< "accounts"_n, account > accounts;
          typedef eosio::multi_index< "stat"_n, currency_stats > stats;

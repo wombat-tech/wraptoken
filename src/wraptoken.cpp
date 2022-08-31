@@ -87,12 +87,8 @@ void wraptoken::_issue(const name& prover, const bridge::actionproof actionproof
     add_balance( lock_act.beneficiary, asset(0, lock_act.quantity.quantity.symbol), prover );
 
     // transfer to beneficiary
-    action act(
-      permission_level{_self, "active"_n},
-      _self, "transfer"_n,
-      std::make_tuple(_self, lock_act.beneficiary, lock_act.quantity.quantity, ""_n)
-    );
-    act.send();
+    wraptoken::transfer_action act(_self, permission_level{_self, "active"_n});
+    act.send(_self, lock_act.beneficiary, lock_act.quantity.quantity, std::string("") );
     
 }
 
@@ -108,12 +104,8 @@ void wraptoken::issuea(const name& prover, const bridge::heavyproof blockproof, 
 
     // check proof against bridge
     // will fail tx if prove is invalid
-    action checkproof_act(
-      permission_level{_self, "active"_n},
-      global.bridge_contract, "checkproofb"_n,
-      std::make_tuple(blockproof, actionproof)
-    );
-    checkproof_act.send();
+    wraptoken::heavyproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
+    checkproof_act.send(blockproof, actionproof);
 
     _issue(prover, actionproof);
 }
@@ -130,12 +122,8 @@ void wraptoken::issueb(const name& prover, const bridge::lightproof blockproof, 
 
     // check proof against bridge
     // will fail tx if prove is invalid
-    action checkproof_act(
-      permission_level{_self, "active"_n},
-      global.bridge_contract, "checkproofc"_n,
-      std::make_tuple(blockproof, actionproof)
-    );
-    checkproof_act.send();
+    wraptoken::lightproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
+    checkproof_act.send(blockproof, actionproof);
 
     _issue(prover, actionproof);
 }
@@ -166,12 +154,8 @@ void wraptoken::_cancel(const name& prover, const bridge::actionproof actionproo
     };
 
     // return to lock_act.owner so can be withdrawn from wraplock
-    action act(
-      permission_level{_self, "active"_n},
-      _self, "emitxfer"_n,
-      std::make_tuple(x)
-    );
-    act.send();
+    wraptoken::emitxfer_action act(_self, permission_level{_self, "active"_n});
+    act.send(x);
 
 }
 
@@ -188,12 +172,8 @@ void wraptoken::cancela(const name& prover, const bridge::heavyproof blockproof,
 
     // check proof against bridge
     // will fail tx if prove is invalid
-    action checkproof_act(
-      permission_level{_self, "active"_n},
-      global.bridge_contract, "checkproofb"_n,
-      std::make_tuple(blockproof, actionproof)
-    );
-    checkproof_act.send();
+    wraptoken::heavyproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
+    checkproof_act.send(blockproof, actionproof);
 
     _cancel(prover, actionproof);
 }
@@ -211,12 +191,8 @@ void wraptoken::cancelb(const name& prover, const bridge::lightproof blockproof,
 
     // check proof against bridge
     // will fail tx if prove is invalid
-    action checkproof_act(
-      permission_level{_self, "active"_n},
-      global.bridge_contract, "checkproofc"_n,
-      std::make_tuple(blockproof, actionproof)
-    );
-    checkproof_act.send();
+    wraptoken::lightproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
+    checkproof_act.send(blockproof, actionproof);
 
     _cancel(prover, actionproof);
 }
@@ -263,12 +239,8 @@ void wraptoken::retire(const name& owner,  const asset& quantity, const name& be
       .beneficiary = beneficiary
     };
 
-    action act(
-      permission_level{_self, "active"_n},
-      _self, "emitxfer"_n,
-      std::make_tuple(x)
-    );
-    act.send();
+    wraptoken::emitxfer_action act(_self, permission_level{_self, "active"_n});
+    act.send(x);
 
 }
 
