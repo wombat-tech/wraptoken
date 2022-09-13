@@ -104,8 +104,11 @@ void wraptoken::issuea(const name& prover, const bridge::heavyproof blockproof, 
 
     // check proof against bridge
     // will fail tx if prove is invalid
+    auto p = _heavy_proof.get_or_create(_self, _heavy_proof_obj);
+    p.hp = blockproof;
+    _heavy_proof.set(p, _self);
     wraptoken::heavyproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
-    checkproof_act.send(blockproof, actionproof);
+    checkproof_act.send(_self, actionproof);
 
     _issue(prover, actionproof);
 }
@@ -122,8 +125,11 @@ void wraptoken::issueb(const name& prover, const bridge::lightproof blockproof, 
 
     // check proof against bridge
     // will fail tx if prove is invalid
+    auto p = _light_proof.get_or_create(_self, _light_proof_obj);
+    p.lp = blockproof;
+    _light_proof.set(p, _self);
     wraptoken::lightproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
-    checkproof_act.send(blockproof, actionproof);
+    checkproof_act.send(_self, actionproof);
 
     _issue(prover, actionproof);
 }
@@ -172,8 +178,11 @@ void wraptoken::cancela(const name& prover, const bridge::heavyproof blockproof,
 
     // check proof against bridge
     // will fail tx if prove is invalid
+    auto p = _heavy_proof.get_or_create(_self, _heavy_proof_obj);
+    p.hp = blockproof;
+    _heavy_proof.set(p, _self);
     wraptoken::heavyproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
-    checkproof_act.send(blockproof, actionproof);
+    checkproof_act.send(_self, actionproof);
 
     _cancel(prover, actionproof);
 }
@@ -191,8 +200,11 @@ void wraptoken::cancelb(const name& prover, const bridge::lightproof blockproof,
 
     // check proof against bridge
     // will fail tx if prove is invalid
+    auto p = _light_proof.get_or_create(_self, _light_proof_obj);
+    p.lp = blockproof;
+    _light_proof.set(p, _self);
     wraptoken::lightproof_action checkproof_act(global.bridge_contract, permission_level{_self, "active"_n});
-    checkproof_act.send(blockproof, actionproof);
+    checkproof_act.send(_self, actionproof);
 
     _cancel(prover, actionproof);
 }

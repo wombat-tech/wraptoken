@@ -20,6 +20,38 @@ namespace eosio {
    class [[eosio::contract("wraptoken")]] wraptoken : public contract {
       private:
 
+         // for bridge communication
+         TABLE lpstruct {
+
+            uint64_t id;
+
+            bridge::lightproof lp;
+
+            uint64_t primary_key()const { return id; }
+
+            EOSLIB_SERIALIZE( lpstruct, (id)(lp) )
+
+         } _light_proof_obj;
+
+         TABLE hpstruct {
+
+            uint64_t id;
+
+            bridge::heavyproof hp;
+
+            uint64_t primary_key()const { return id; }
+
+            EOSLIB_SERIALIZE( hpstruct, (id)(hp) )
+
+         } _heavy_proof_obj;
+
+         using lptable = eosio::singleton<"lightproof"_n, lpstruct>;
+         using hptable = eosio::singleton<"heavyproof"_n, hpstruct>;
+
+         lptable _light_proof;
+         hptable _heavy_proof;
+
+
          // structure used for globals - see `init` action for documentation
          struct [[eosio::table]] global {
             checksum256   chain_id;
@@ -195,7 +227,9 @@ namespace eosio {
          wraptoken( name receiver, name code, datastream<const char*> ds ) :
          contract(receiver, code, ds),
          global_config(_self, _self.value),
-         _processedtable(_self, _self.value)
+         _processedtable(_self, _self.value),
+         _light_proof(receiver, receiver.value),
+         _heavy_proof(receiver, receiver.value)
          {
 
          }
