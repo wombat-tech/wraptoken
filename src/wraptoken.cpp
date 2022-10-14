@@ -348,9 +348,11 @@ void wraptoken::close( const name& owner, const symbol& symbol )
 
 }
 
-void wraptoken::clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols)
+void wraptoken::clear(const name& caller, const std::vector<name> user_accounts, const std::vector<symbol> symbols)
 { 
   check(global_config.exists(), "contract must be initialized first");
+
+  require_auth( _self );
 
   // if (global_config.exists()) global_config.remove();
 
