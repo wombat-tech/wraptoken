@@ -84,12 +84,12 @@ CONTRACT bridge : public contract {
 		};
 
 		//Adding definition to ABI file to make it easier to interface with the contract
-		TABLE schedule {
+		TABLE schedulev2 {
 				 
 			uint32_t version;
 			std::vector<producer_authority> producers ;
 
-			EOSLIB_SERIALIZE( schedule, (version)(producers))
+			EOSLIB_SERIALIZE( schedulev2, (version)(producers))
 
 		};
 
@@ -244,17 +244,18 @@ CONTRACT bridge : public contract {
 		//  scoped by readable chain name
 		TABLE chainschedule {
 
-			uint64_t			version;
-			schedule 		producer_schedule;
-			checksum256 	hash;
-			uint32_t 		first_block;
-			uint32_t 		last_block;
-			time_point 		expiry;
+			uint64_t						version;
+			producer_schedule 		producer_schedule_v1;
+			schedulev2 					producer_schedule_v2;
+			checksum256 				hash;
+			uint32_t 					first_block;
+			uint32_t 					last_block;
+			time_point 					expiry;
 
 			uint64_t primary_key()const { return version; }
 			uint64_t by_expiry()const { return expiry.sec_since_epoch(); }
 
-			EOSLIB_SERIALIZE( chainschedule, (version)(producer_schedule)(hash)(first_block)(last_block)(expiry) )
+			EOSLIB_SERIALIZE( chainschedule, (version)(producer_schedule_v1)(producer_schedule_v2)(hash)(first_block)(last_block)(expiry) )
 
 		};
 
@@ -328,17 +329,23 @@ CONTRACT bridge : public contract {
 	   }
 
 	   //one time initialization per chain
-      ACTION init(name chain_name, checksum256 chain_id, uint32_t return_value_activated, schedule initial_schedule );
+      ACTION inita(name chain_name, checksum256 chain_id, uint32_t return_value_activated, producer_schedule initial_schedule ); //old schedule version (WAX, TELOS)
+      ACTION initb(name chain_name, checksum256 chain_id, uint32_t return_value_activated, schedulev2 initial_schedule ); //new schedule version (EOS, UX)
 
       //Two different proving schemes are available (heavy / light).
 
-      //For the heavy proof scheme, user has the option to prove both a block and an action, or only a block
+      //For the heavy proof scheme, user has the option to prove both a block and an action, or only a block. Use with inline action
       ACTION checkproofa(name contract);
       ACTION checkproofb(name contract, actionproof actionproof);
 
-      //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block
+      //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block. Use with inline action
       ACTION checkproofc(name contract, actionproof actionproof); 
       
+      //Same verification, but meant to be used directly instead of inline
+      ACTION checkproofd(heavyproof blockproof);
+      ACTION checkproofe(heavyproof blockproof, actionproof actionproof);
+
+      ACTION checkprooff(lightproof blockproof, actionproof actionproof); 
 
 
       //to be removed
@@ -357,8 +364,13 @@ CONTRACT bridge : public contract {
 		void gc_proofs(name chain, int count);
 		void gc_schedules(name chain, int count);
 
+		void _checkproofa(heavyproof blockproof);
+		void _checkproofb(heavyproof blockproof, actionproof actionproof);
+		void _checkproofc(lightproof blockproof, actionproof actionproof);
+
 		void checkblockproof(heavyproof blockproof);
-		void checkactionproof(heavyproof blockproof, actionproof actionproof);
+		
+		void checkactionproof(checksum256 chain_id, blockheader blockheader, actionproof actionproof);
 
 		void add_proven_root(name chain, uint32_t block_num, checksum256 root);
 		void check_proven_root(name chain, checksum256 root);
