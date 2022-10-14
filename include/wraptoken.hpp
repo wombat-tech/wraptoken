@@ -190,7 +190,7 @@ namespace eosio {
          void emitxfer(const wraptoken::xfer& xfer);
 
          [[eosio::action]]
-         void clear(const name& caller, const std::vector<name> user_accounts, const std::vector<symbol> symbols);
+         void clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols);
 
          static asset get_supply( const name& token_contract_account, const symbol_code& sym_code )
          {
