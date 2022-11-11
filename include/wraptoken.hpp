@@ -59,6 +59,7 @@ namespace eosio {
             checksum256   paired_chain_id;
             name          paired_wraplock_contract;
             name          paired_token_contract;
+            bool          enabled;
          } globalrow;
 
          // structure for keeping user balances, scoped by user
@@ -189,8 +190,20 @@ namespace eosio {
          [[eosio::action]]
          void emitxfer(const wraptoken::xfer& xfer);
 
+         /**
+          * Disable all user actions on the contract.
+          */
          [[eosio::action]]
-         void clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols);
+         void disable();
+
+         /**
+          * Enable all user actions on the contract.
+          */
+         [[eosio::action]]
+         void enable();
+
+         //[[eosio::action]]
+         //void clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols);
 
          static asset get_supply( const name& token_contract_account, const symbol_code& sym_code )
          {
