@@ -396,7 +396,7 @@ void wraptoken::close( const name& owner, const symbol& symbol )
 
 }
 
-/*void wraptoken::clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols)
+/*void wraptoken::clear(const std::vector<name> user_accounts, const std::vector<name> symbol_names)
 { 
   check(global_config.exists(), "contract must be initialized first");
 
@@ -417,9 +417,10 @@ void wraptoken::close( const name& owner, const symbol& symbol )
   }
 
   // remove stats balances
-  for (symbol symbol: symbols) {
+  for (name symbolname: symbol_names) {
 
-    stats s_table( get_self(), symbol.code().raw());
+    symbol_code sc = symbol_code(symbolname.value);
+    stats s_table( get_self(), sc.raw());
     while (s_table.begin() != s_table.end()) {
       auto itr = s_table.end();
       itr--;
