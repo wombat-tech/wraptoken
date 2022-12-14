@@ -30,6 +30,8 @@ void wraptoken::init(const checksum256& chain_id, const name& bridge_contract, c
 
     require_auth( _self );
 
+    check( is_account( bridge_contract ), "bridge_contract account does not exist" );
+
     auto global = global_config.get_or_create(_self, globalrow);
     global.chain_id = chain_id;
     global.bridge_contract = bridge_contract;
@@ -84,7 +86,7 @@ void wraptoken::_issue(const name& prover, const bridge::actionproof actionproof
        s.supply += lock_act.quantity.quantity;
     });
 
-    add_balance( _self, lock_act.quantity.quantity, lock_act.beneficiary );
+    add_balance( _self, lock_act.quantity.quantity, _self );
 
     // ensure beneficiary has a balance
     add_balance( lock_act.beneficiary, asset(0, lock_act.quantity.quantity.symbol), prover );
