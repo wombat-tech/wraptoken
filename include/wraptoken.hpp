@@ -203,8 +203,8 @@ namespace eosio {
          void enable();
 
 
-         [[eosio::action]]
-         void clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols);
+         //[[eosio::action]]
+         //void clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols);
 
 
          static asset get_supply( const name& token_contract_account, const symbol_code& sym_code )
