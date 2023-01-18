@@ -38,7 +38,7 @@ void wraptoken::init(const checksum256& chain_id, const name& bridge_contract, c
     global.paired_chain_id = paired_chain_id;
     global.paired_wraplock_contract = paired_wraplock_contract;
     global.paired_token_contract = paired_token_contract;
-    global.enabled = true;
+    global.enabled = false;
     global_config.set(global, _self);
 
 }
@@ -398,9 +398,7 @@ void wraptoken::close( const name& owner, const symbol& symbol )
 
 }
 
-/*void wraptoken::clear(const std::vector<name> user_accounts, const std::vector<name> symbol_names)
-{ 
-  check(global_config.exists(), "contract must be initialized first");
+void wraptoken::clear(const std::vector<name> user_accounts, const std::vector<symbol> symbols){ 
 
   require_auth( _self );
 
@@ -437,7 +435,10 @@ void wraptoken::close( const name& owner, const symbol& symbol )
     _processedtable.erase(itr);
   }
 
-}*/
+  if (_light_proof.exists()) _light_proof.remove();
+  if (_heavy_proof.exists()) _heavy_proof.remove();
+
+}/**/
 
 } /// namespace eosio
 
