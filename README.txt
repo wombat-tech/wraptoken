@@ -1,9 +1,7 @@
 --- wraptoken Project ---
 
  - How to Build -
-   - cd to 'build' directory
-   - run the command 'cmake ..'
-   - run the command 'make'
+   - Run compile.sh
 
  - After build -
    - The built smart contract is under the 'wraptoken' directory in the 'build' directory
